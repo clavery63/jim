@@ -10,14 +10,14 @@ ALLEGRO_DISPLAY_MODE screen;
 ALLEGRO_EVENT_QUEUE *event_queue = NULL;
 ALLEGRO_TIMER *timer = NULL;
 ALLEGRO_BITMAP *jim = NULL;
-ALLEGRO_BITMAP *minisprite = NULL;
+ALLEGRO_BITMAP *cursor = NULL;
 
 const float FPS = 60.0;
 bool endgame = false;
 bool redraw = false;
 enum {UP, DOWN, LEFT, RIGHT, A, D};
 bool key[6];
-float wall_distance[10000];
+float wall_distance[2000];
 
 
 //Player Position
@@ -191,8 +191,9 @@ int main(int argc, char **argv) {
 	//Make Event Queue
 	event_queue = al_create_event_queue();
 
-	//Draw Sprite
+	//Draw Sprites
 	jim = al_load_bitmap("Jim.png");
+	cursor = al_load_bitmap("Cursor.png");
 
 
 	//Event Sources
@@ -353,7 +354,8 @@ int main(int argc, char **argv) {
 				wall_distance[int(i) + 1] = wall_distance[int(i)];
 				wall_distance[int(i) + 2] = wall_distance[int(i)];
 			}
-			draw_sprite(jim, 730, 600, 350, 35000);
+			draw_sprite(jim, 730, 600, 375, 25000);
+			draw_sprite(cursor, 730, 800, 375, 25000);
 
 			al_flip_display();
 		}
