@@ -11,18 +11,20 @@ ALLEGRO_EVENT_QUEUE *event_queue = NULL;
 ALLEGRO_TIMER *timer = NULL;
 ALLEGRO_BITMAP *jim = NULL;
 ALLEGRO_BITMAP *cursor = NULL;
+ALLEGRO_BITMAP *clipped = NULL;
 
 const float FPS = 60.0;
 bool endgame = false;
 bool redraw = false;
 enum {UP, DOWN, LEFT, RIGHT, A, D};
 bool key[6];
-float wall_distance[2000];
+float wall_distance[3000];
+
 
 
 //Player Position
-double px = 700;
-double py = 600;
+double px = 150;
+double py = 150;
 double angle = PI;
 
 
@@ -100,24 +102,60 @@ public:
 
 
 
-//Sprite Stuff (TODO: refactor so sprite_z is used)
-void draw_sprite(ALLEGRO_BITMAP *sprite, double sprite_x, double sprite_y, double hgt_at_inf, double hgt_adj_factor) {
+//Sprite Stuff
+void draw_sprite(ALLEGRO_BITMAP *sprite, double sprite_x, double sprite_y, double sprite_z) {
 	double sprite_distance = sqrt((sprite_x - px)*(sprite_x - px) + (sprite_y - py)*(sprite_y - py));
-	double sprite_size = 10000/sprite_distance;
+	double sprite_size = 30000/sprite_distance;
 	double sprite_direction;
+	int sprite_clipped_left = 0;
+	int sprite_clipped_right = 0;
+	bool dont_draw = false;
 	if (sprite_y - py > 0) {
 		sprite_direction = atan((sprite_x - px)/(sprite_y - py));
 	}
 	else {
 		sprite_direction = atan((sprite_x - px)/(sprite_y - py)) + PI;
 	}
-	double sprite_vertical = hgt_at_inf - hgt_adj_factor/sprite_distance;
+	double sprite_vertical = 385 - sprite_z*(27500/sprite_distance) - sprite_size;
 	double difference = sprite_direction - angle;
 	if (sprite_y - py < 0 && angle < 0) {
 		difference -= 2*PI;
 	}
-	double sprite_horizontal = screen.width/2 - sprite_size/2 + (screen.width)*(difference);
-	al_draw_scaled_bitmap(sprite, 0, 0 , 200, 300, sprite_horizontal, sprite_vertical, sprite_size, sprite_size, 0);
+	int sprite_horizontal = screen.width/2 - sprite_size/2 + (screen.width)*(difference);
+	if (sprite_horizontal > screen.width || sprite_horizontal < -sprite_size) {
+		sprite_horizontal = screen.width + 1;
+	}
+
+
+	//Decide where to clip image for corners
+	if (sprite_distance > wall_distance[int(sprite_horizontal)]) {
+		int i = sprite_horizontal;
+		while (sprite_distance > wall_distance[i]) {
+			i++;
+			if (i > sprite_size + sprite_horizontal) {
+				dont_draw = true;
+				break;
+			}
+		}
+		sprite_clipped_left = i - sprite_horizontal;
+	}
+	if (sprite_size < 500 && !dont_draw) {
+		if (sprite_distance > wall_distance[int(sprite_horizontal + sprite_size)]) {
+			int i = sprite_horizontal + sprite_size;
+			while (sprite_distance > wall_distance[i]) {
+				i--;
+				if (i < 1)
+					break;
+			}
+			sprite_clipped_right = sprite_horizontal + sprite_size - i;
+		}
+	}
+
+	clipped = al_create_sub_bitmap(sprite, sprite_clipped_left*(200/sprite_size), 0, 0, 0);
+	
+	if (!dont_draw) {
+		al_draw_scaled_bitmap(clipped, 0, 0 , 200 - sprite_clipped_right*(200/sprite_size), 200, sprite_horizontal + sprite_clipped_left - 2, sprite_vertical, sprite_size - sprite_clipped_right, sprite_size, 0);
+	}
 }
 
 
@@ -126,10 +164,10 @@ void draw_sprite(ALLEGRO_BITMAP *sprite, double sprite_x, double sprite_y, doubl
 
 
 //Drawing Functions
-void draw_wall(int x, float distance) {
-	int size = 16000/distance;
+void draw_border(int x, float distance) {
+	int size = 80000/distance;
 	int y1 = screen.height/2 - size/2;
-	size = 10000/distance;
+	size = 50000/distance;
 	int y2 = screen.height/2 + size/2;
 	al_draw_line(x,y1,x,y1+3,al_map_rgb(0,0,0), 3);
 	al_draw_line(x,y2,x,y2+3,al_map_rgb(0,0,0), 3);
@@ -137,14 +175,14 @@ void draw_wall(int x, float distance) {
 
 // Draw Line from top of screen to where the ceiling meets the wall
 void draw_ceiling(int x, float distance) {
-	int min_height = 16000/distance;
+	int min_height = 80000/distance;
 	int y1 = screen.height/2 - min_height/2;
 	al_draw_line(x,0,x,y1,al_map_rgb(20,80,20), 3);
 }
 
 //Draw from bottom of screen up to wall
 void draw_floor(int x, float distance) {
-	int max_height = 10000/distance;
+	int max_height = 50000/distance;
 	int y2 = screen.height/2 + max_height/2;
 	al_draw_line(x,y2,x,screen.height,al_map_rgb(50,50,180), 3);
 }
@@ -193,6 +231,7 @@ int main(int argc, char **argv) {
 
 	//Draw Sprites
 	jim = al_load_bitmap("Jim.png");
+	al_convert_mask_to_alpha(jim, al_map_rgb(255,0,255));
 	cursor = al_load_bitmap("Cursor.png");
 
 
@@ -223,45 +262,49 @@ int main(int argc, char **argv) {
 			double wall_y = py;
 
 			if (key[UP]) {
-				px += 3*sin(angle);
-				py += 3*cos(angle);
+				px += 4*sin(angle);
+				py += 4*cos(angle);
 			}
 			if (key[DOWN]) {
-				px -= 3*sin(angle);
-				py -= 3*cos(angle);
+				px -= 4*sin(angle);
+				py -= 4*cos(angle);
 			}
 			if (key[A]) {
-				angle -= .01;
+				angle -= .02;
 				if (angle < -PI)
 					angle += 2*PI;
 			}
 			if (key[D]) {
-				angle += .01;
+				angle += .02;
 				if (angle > PI)
 					angle -=2*PI;
 			}
 			if (key[LEFT]) {
-				px -= cos(angle);
-				py += sin(angle);
+				px -= 2*cos(angle);
+				py += 2*sin(angle);
 			}
 			if (key[RIGHT]) {
-				px += cos(angle);
-				py -= sin(angle);
+				px += 2*cos(angle);
+				py -= 2*sin(angle);
 			}
 
 
 			//Don't Go Through Walls
-				if (map1[int(px/100)][int((py-10)/100)] != 0) {
+			    double temp_y = py;
+				double temp_x = px;
+				if (map1[int((px+9.9)/100)][int((py-10)/100)] != 0 || map1[int((px-9.9)/100)][int((py-10)/100)] != 0) {
 					py = wall_y;
 				}
-				if (map1[int(px/100)][int((py+10)/100)] != 0) {
+				if (map1[int((px+9.9)/100)][int((py+10)/100)] != 0 || map1[int((px-9.9)/100)][int((py+10)/100)] != 0) {
 					py = wall_y;
 				}
-				if (map1[int((px-10)/100)][int(py/100)] != 0) {
+				if (map1[int((px-10)/100)][int((py+9.9)/100)] != 0 || map1[int((px-10)/100)][int((py-9.9)/100)] != 0) {
 					px = wall_x;
+					py = temp_y;
 				}
-				if (map1[int((px+10)/100)][int(py/100)] != 0) {
+				if (map1[int((px+10)/100)][int((py+9.9)/100)] != 0 || map1[int((px+10)/100)][int((py-9.9)/100)] != 0) {
 					px = wall_x;
+					py = temp_y;
 				}
 		}
 
@@ -323,7 +366,7 @@ int main(int argc, char **argv) {
 		//Draw Frame
 		if(redraw && al_is_event_queue_empty(event_queue)) {
 			redraw = false;
-			al_clear_to_color(al_map_rgb(150, 150, 100));
+			al_clear_to_color(al_map_rgb(150, 150, 150));
 
 			for (double i = 0; i < screen.width; i +=3) {
 				double x = px;
@@ -332,30 +375,33 @@ int main(int argc, char **argv) {
 				double ray = angle + .5*((i - screen.width/2)/(screen.width/2));
 				while (map1[int(x/100)][int(y/100)] != 1) {
 					if (d < 10) {
-						d += .05;
+						d += .2;
 						x += .2*sin(ray);
 						y += .2*cos(ray);
 					}
 					else if (d < 30) {
-						d += .1;
+						d += .4;
 						x += .4*sin(ray);
 						y += .4*cos(ray);
 					}
 					else {
-						d += .25;
+						d += 1;
 						x += sin(ray);
 						y += cos(ray);
 					}
 				}
 				draw_ceiling(i, d);
 				draw_floor(i, d);
-				draw_wall(i, d);
-				wall_distance[int(i)] = sqrt((x - px)*(x - px) + (y - py)*(y - py));
-				wall_distance[int(i) + 1] = wall_distance[int(i)];
-				wall_distance[int(i) + 2] = wall_distance[int(i)];
+				draw_border(i, d);
+				wall_distance[int(i)] = d;
+				wall_distance[int(i) + 1] = d;
+				wall_distance[int(i) + 2] = d;
 			}
-			draw_sprite(jim, 730, 600, 375, 25000);
-			draw_sprite(cursor, 730, 800, 375, 25000);
+			draw_sprite(jim, 730, 600, -1);
+			draw_sprite(cursor, 730, 800, -1);
+			draw_sprite(jim, 800, 130, 1);
+			draw_sprite(jim, 1200, 130, -1);
+			draw_sprite(jim, 1500, 130, 1);
 
 			al_flip_display();
 		}
@@ -368,4 +414,27 @@ int main(int argc, char **argv) {
 	al_destroy_event_queue(event_queue);
  
 	return 0;
+}
+
+
+
+
+
+//Texture Mapping
+
+void draw_wall(int x, float distance) {
+	int size = 80000/distance;
+	int y1 = screen.height/2 - 40000/distance;
+	size = 50000/distance;
+	int y2 = screen.height/2 + 25000/distance;
+	al_draw_line(x,y1,x,y2,al_map_rgb(0,0,0), 3);
+}
+
+
+void create_slivers(ALLEGRO_BITMAP *texture) {
+	int slivers[200];
+	for(int i = 0; i < 200; i++) {
+		clipped = al_create_sub_bitmap(texture, i, 0, 200, 200);
+		
+	}
 }
